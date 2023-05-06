@@ -99,6 +99,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_name', type=str, default='facebook/opt-350m')
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--chunks', type=int, default=1)
+    parser.add_argument('--bettertransformer', type=bool, default=True)
     parser.add_argument('--cuda', type=int, default=int(torch.cuda.is_available()))
     parser.add_argument('--pp_group_size', type=int, default=int(os.getenv("WORLD_SIZE", 4)))
     parser.add_argument('--dtype', type=str, default="fp32", choices=["fp32", "bf16", "fp16"])
@@ -142,11 +143,21 @@ if __name__ == "__main__":
         if args.index_filename is not None:
             with torch.device("meta"):
                 model = AutoModelForCausalLM.from_pretrained(args.model_name, use_cache=False, torch_dtype=dtype)
+
         else:
             model = AutoModelForCausalLM.from_pretrained(args.model_name, use_cache=False, torch_dtype=dtype)
     else:
         raise ValueError(f"Unsupported model: {args.model_name}")
 
+    if args.bettertransformer:
+        try:
+            from optimum.bettertransformer import BetterTransformer
+
+            model = BetterTransformer.transform(model)
+        except ImportError as error:
+            print("HuggingFace Optimum is not installed. Proceeding without BetterTransformer")
+        except RuntimeError as error:
+            print("HuggingFace Optimum is not supporting this model,for the list of supported models, please refer to this doc,https://huggingface.co/docs/optimum/bettertransformer/overview")
     args.model = model
     args.gspmd = 1
     run_pippy(run_all, args)
